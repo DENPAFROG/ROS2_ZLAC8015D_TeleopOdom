@@ -1,32 +1,55 @@
 #include "zlac8015d.h"
 
-#define FLIP -1
-
-int main()
-{
+int main(){
+    ZLAC mot;
+    struct MOT_DATA motorstat;
     printf("===begin===\n");
-    ZLAC motorR;
-    motorR.begin("/dev/ttyUSB0", 115200, 0x01);
-    ZLAC motorL;
-    motorL.begin("/dev/ttyUSB1", 115200, 0x01);
+    mot.begin("/dev/ttyUSB0", 115200, 0x01);
+    printf("===set_vel_mode===\n");
+    mot.set_vel_mode();
+    printf("===enable===\n");
+    mot.enable();
 
-    printf("\n===set_vel_mode===\n");
-    motorR.set_vel_mode();
-    motorL.set_vel_mode();
+    mot.set_double_rpm(0, 0);
+    //I dunno why I have to use this 3 times to get normal RPM
+    //maybe need some delay? message sending timing?// anyway it works 〜(￣▽￣〜)
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_position();
+    printf("\nL:%lf|R:%lf\n", motorstat.rpm_L, motorstat.rpm_R);
+    printf("\nLp:%d|Rp:%d\n", motorstat.encoder_L, motorstat.encoder_R);
+        mot.sleep(1000);
 
-    printf("\n===enable===\n");
-    motorR.enable();
-    motorL.enable();
+    printf("===set_rpm===\n");
+    mot.set_double_rpm(30, -30);   
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_position();
+    printf("\nL:%lf|R:%lf\n", motorstat.rpm_L, motorstat.rpm_R);
+    printf("\nLp:%d|Rp:%d\n", motorstat.encoder_L, motorstat.encoder_R);
+        mot.sleep(1000);
 
-    printf("\n===set_rpm===\n");
-    motorR.set_rpm(50, "LEFT");
-    motorR.set_rpm(50, "RIGHT");
-    motorL.set_rpm(-50, "LEFT");
-    motorL.set_rpm(-50, "RIGHT");
+    printf("===set_rpm===\n");
+    mot.set_double_rpm(80, -80);   
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_position();
+    printf("\nL:%lf|R:%lf\n", motorstat.rpm_L, motorstat.rpm_R);
+    printf("\nLp:%d|Rp:%d\n", motorstat.encoder_L, motorstat.encoder_R);
+        mot.sleep(1000);
 
-    printf("\n===set_sync_rpm===\n");
+    mot.set_double_rpm(0, 0); 
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_rpm();
+    motorstat = mot.get_position();
+    printf("\nL:%lf|R:%lf\n", motorstat.rpm_L, motorstat.rpm_R);
+    printf("\nLp:%d|Rp:%d\n", motorstat.encoder_L, motorstat.encoder_R);
 
-    printf("\n===disable===\n");
-    motorR.disable();
-    motorL.disable();
+    printf("===disable===\n");
+    mot.disable();
+    // motorL.disable();
 }

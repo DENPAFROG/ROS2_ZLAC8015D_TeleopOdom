@@ -4,7 +4,7 @@
   <name>zlac8015d_serial</name>
   <version>0.0.1</version>
   <description>ROS2 package for RS485 communication with ZLAC8015D driver</description>
-  <maintainer email="oxcarxierra@gmail.com">Seung Seok Oh</maintainer>
+  <maintainer email="denpafrog@gmail.com">DENPAFROG</maintainer>
   <license>MIT</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
 
