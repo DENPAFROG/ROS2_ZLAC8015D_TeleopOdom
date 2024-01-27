@@ -18,3 +18,8 @@ git clone https://github.com/oxcarxierra/ROS2_ZLAC8015D_serial.git
 colcon build --packages-select zlac8015d_serial
 ros2 run zlac8015d_serial example
 ```
+
+## Tip
+
+if your USB-RS485 converter uses ch340 it maybe conflict with “brltty” linux service
+recommended to disable the "brltty" Linux service
