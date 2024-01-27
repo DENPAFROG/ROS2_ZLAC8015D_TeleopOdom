@@ -26,4 +26,5 @@ ros2 run zlac8015d_serial example
 ## Tip
 
 if your USB-RS485 converter uses ch340 it maybe conflict with “brltty” linux service
+
 recommended to disable the "brltty" Linux service
