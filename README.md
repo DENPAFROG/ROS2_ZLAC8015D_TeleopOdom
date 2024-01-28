@@ -20,7 +20,7 @@ Driver Info Link: http://www.zlrobotmotor.com/info/401.html
 cd <your_workspace>
 git clone https://github.com/oxcarxierra/ROS2_ZLAC8015D_serial.git
 colcon build --packages-select zlac8015d_serial
-ros2 run zlac8015d_serial example
+ros2 run zlac8015d_serial zlac_run
 ```
 
 ## Tip
