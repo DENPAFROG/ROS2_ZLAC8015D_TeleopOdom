@@ -1,42 +1,64 @@
 #include <math.h>
-
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
-
+#include "sensor_msgs/msg/joint_state.hpp"
 #include "zlac8015d.h"
 
-#define WHEEL_BASE 0.525
-#define WHEEL_RAD 0.105 //meter
-#define ONE_REV_TRAVEL 0.6597 //one_rev = 0.105m*2PI = 0.6597 
-#define PULSE_PER_ROT 16385 //pulse per one rot = 16385 (dec)
+//you can change subscribe topic name 
+#define TWIST_SUB_TOPIC_NAME "cmd_vel"
+//you can change odometry publish topic name and TF frame name
+#define ODOM_PUB_TOPIC_NAME "odom"
+#define ODOM_FRAME_ID "odom"
+#define ODOM_CHILD_FRAME_ID "base_link"
+//setting serial port, baudrate, MODBUS ID, debug_print_enable
+#define SERIAL_PORT_NAME "/dev/ttyUSB0"
+#define BAUDRATE 115200
+#define MODBUS_ID 0x01
+#define DEBUG_ENABLE false
+
+#define JOINT_PUB_TOPIC_NAME "joint"
+
+//setting odometry constant here (based on "ZLLG80ASM250-L" model)
+#define WHEEL_RAD 0.105         //unit: meter
+#define ONE_REV_TRAVEL 0.6597   //one_rev travel = 0.105m * 2PI = 0.6597m 
+#define PULSE_PER_ROT 16385     //encoder pulse per one rot
+#define WHEEL_BASE 0.525        //your robot's wheel to wheel distance
 
 class zlac_run : public rclcpp::Node{
 public:
     zlac_run() : Node("odometry_and_twist_node"){   
         if (!initialized) {
-            mot.init("/dev/ttyUSB0", 115200, 0x01, false);
+            mot.init(SERIAL_PORT_NAME, BAUDRATE, MODBUS_ID, DEBUG_ENABLE);
             motorstat_init = mot.get_rpm();
             motorstat_init = mot.get_position();
             initialized = true;
         }
 
         // make odometry publisher
-        odometry_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+        odometry_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>(ODOM_PUB_TOPIC_NAME, 10);
+
+        // make jointstate publisher
+        joint_publisher_ = this->create_publisher<sensor_msgs::msg::JointState>(JOINT_PUB_TOPIC_NAME, 10);
+
 
         // make twist subscriber
         twist_subscriber_ = this->create_subscription<geometry_msgs::msg::Twist>(
-            "cmd_vel", 10, std::bind(&zlac_run::twist_callback, this, std::placeholders::_1));
+            TWIST_SUB_TOPIC_NAME, 10, std::bind(&zlac_run::twist_callback, this, std::placeholders::_1));
 
         // make timer for 30hz odometry msg publish
-        timer_ = this->create_wall_timer(
+        timer_odom = this->create_wall_timer(
             std::chrono::milliseconds(1000 / 30),
             std::bind(&zlac_run::publish_odometry, this));
+        
+        // make timer for 30hz jointstate msg publish
+        timer_joint = this->create_wall_timer(
+            std::chrono::milliseconds(1000 / 30),
+            std::bind(&zlac_run::publish_jointstate, this));
     }
     ~zlac_run(){
         mot.terminate();
@@ -53,8 +75,8 @@ private:
     double cd = 0.1;                //odometry Covariance main Diagonal value
     double linx;                    //odometry twist.linear.x
     double angz;                    //odometry twist.angular.z
-    int32_t ENCODER_DIFF_L;         //endocer diff counter
-    int32_t ENCODER_DIFF_R;         //endocer diff counter
+    int32_t ENCODER_DIFF_L = 0;         //endocer diff counter
+    int32_t ENCODER_DIFF_R = 0;         //endocer diff counter
     double rot_L_dst;               //wheel rotation distance (meter) for calc odometry 
     double rot_R_dst;               //wheel rotation distance (meter) for calc odometry 
     double mean_rot_dist = 0.0;     //LR wheel mean rot distance (meter) for calc odometry
@@ -84,8 +106,8 @@ private:
 
         auto msg = nav_msgs::msg::Odometry();
         msg.header.stamp = this->get_clock()->now();
-        msg.header.frame_id = "odom";
-        msg.child_frame_id = "base_link";
+        msg.header.frame_id = ODOM_FRAME_ID;
+        msg.child_frame_id = ODOM_CHILD_FRAME_ID;
 
         linx = 0.10472 * (motorstat.rpm_L - motorstat.rpm_R) / 2;
         angz = 0.10472 * (motorstat.rpm_R + motorstat.rpm_L) / WHEEL_BASE;
@@ -101,8 +123,8 @@ private:
         rot_theta_diff = (rot_R_dst - rot_L_dst) / WHEEL_BASE;
         rot_theta = rot_theta + rot_theta_diff;
         
-        pos_X = pos_X + mean_rot_dist * cos(rot_theta / 2);
-        pos_Y = pos_Y + mean_rot_dist * sin(rot_theta / 2);
+        pos_X = pos_X + mean_rot_dist * cos(rot_theta);
+        pos_Y = pos_Y + mean_rot_dist * sin(rot_theta);
 
         msg.pose.pose.position.x = pos_X;
         msg.pose.pose.position.y = pos_Y;
@@ -128,9 +150,35 @@ private:
         odometry_publisher_->publish(msg);
     }
 
+    void publish_jointstate(){
+        auto message = sensor_msgs::msg::JointState();
+        message.header.stamp = this->get_clock()->now();
+        
+        //resize array for joint amount
+        size_t num_joints = 2;
+        message.name.resize(num_joints);
+        message.position.resize(num_joints);
+        // message.velocity.resize(num_joints);
+        // message.effort.resize(num_joints);
+
+        message.name[0] = "wheel_L";
+        message.position[0] = std::fmod(ENCODER_DIFF_L / PULSE_PER_ROT * 6.283185307, 6.283185307);
+        // message.velocity[0] = velocity_for_joint1;
+        // message.effort[0] = effort_for_joint1;
+
+        message.name[1] = "wheel_R";
+        message.position[1] = std::fmod(ENCODER_DIFF_R / PULSE_PER_ROT * 6.283185307, 6.283185307);
+        // message.velocity[1] = velocity_for_joint2;
+        // message.effort[1] = effort_for_joint2;
+
+        joint_publisher_->publish(message);
+    }
+
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odometry_publisher_;
+    rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr joint_publisher_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr twist_subscriber_;
-    rclcpp::TimerBase::SharedPtr timer_;
+    rclcpp::TimerBase::SharedPtr timer_odom;
+    rclcpp::TimerBase::SharedPtr timer_joint;
 };
 
 int main(int argc, char *argv[])
