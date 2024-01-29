@@ -26,14 +26,9 @@ struct MOT_DATA{
 
 class ZLAC{
 protected:
-    std::chrono::time_point<std::chrono::steady_clock> start, end;
-
-    // odometry data //  8 inches wheel (ZLLG80ASM250)
-    double wheel_rad = 0.105; //meter
-    double one_rev_travel = 0.6597; //one_rev = 0.105m*2PI = 0.6597 
-    uint16_t pulse_per_rot = 16385; //pulse per one rot = 16385 (dec)
-
 	//  hendler //
+    bool PRINT_DEBUG_MSG = false;
+
     uint8_t hex_cmd[15] = {0};
     uint8_t receive_hex[15] = {0};
     
@@ -143,14 +138,28 @@ public:
     uint8_t set_double_rpm(int16_t Lrpm, int16_t Rrpm);
 
     /**
-     * @return rpm measured from wheel
+     * @return request wheel rpm
      */
     MOT_DATA get_rpm();
 
     /**
-     * @return Actual position feedback, unit: counts
+     * @return request some encoder pulse count
      */
     MOT_DATA get_position();
+
+    /**
+     * @param port
+     * @param baudrate
+     * @param ID
+     * @param DEBUG_MSG_SET
+     * @return motor init process
+     */
+    uint8_t init(std::string port, int baudrate, uint8_t ID, bool DEBUG_MSG_SET);
+
+    /**
+     * @return motor terminate process
+     */
+    uint8_t terminate();
 
     /**
      * @return Error feedback,

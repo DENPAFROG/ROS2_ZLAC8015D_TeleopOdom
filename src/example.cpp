@@ -3,16 +3,9 @@
 int main(){
     ZLAC mot;
     struct MOT_DATA motorstat;
-    printf("===begin===\n");
-    mot.begin("/dev/ttyUSB0", 115200, 0x01);
-    printf("===set_vel_mode===\n");
-    mot.set_vel_mode();
-    printf("===enable===\n");
-    mot.enable();
-
+    mot.init("/dev/ttyUSB0", 115200, 0x01, true);
+    
     mot.set_double_rpm(0, 0);
-    //I dunno why I have to use this 3 times to get normal RPM
-    //maybe need some delay? message sending timing?// anyway it works 〜(￣▽￣〜)
     motorstat = mot.get_rpm();
     motorstat = mot.get_rpm();
     motorstat = mot.get_rpm();
@@ -50,6 +43,6 @@ int main(){
     printf("\nLp:%d|Rp:%d\n", motorstat.encoder_L, motorstat.encoder_R);
 
     printf("===disable===\n");
-    mot.disable();
+    mot.terminate();
     // motorL.disable();
 }

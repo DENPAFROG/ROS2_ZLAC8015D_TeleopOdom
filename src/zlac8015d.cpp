@@ -161,7 +161,10 @@ uint8_t ZLAC::set_single_rpm(int16_t rpm, std::string side){
     hex_cmd[5] = rpm & 0xFF;
     calculate_crc(8);
     _serial.write(hex_cmd, 8);
-    if (read_hex(8)) return 1;
+    if (read_hex(8)) {
+        printf("\nERR_SET_S_RPM\n");
+        return 1;
+    }
     return 0;
 }
 
@@ -183,7 +186,10 @@ uint8_t ZLAC::set_double_rpm(int16_t Lrpm, int16_t Rrpm){
     hex_cmd[10] = Rrpm & 0xFF;
     calculate_crc(13);
     _serial.write(hex_cmd, 13);
-    if (read_hex(8)) return 1;
+    if (read_hex(8)) {
+        printf("\nERR_SET_D_RPM\n");
+        return 1;
+    }
     return 0;
 }
 
@@ -231,6 +237,22 @@ MOT_DATA ZLAC::get_position(){  //0x0103|0x20A6|0x0005|CRC can rcv LR motor enco
 }
 
 //////////////// HELPER Functions ////////////////
+uint8_t ZLAC::init(std::string port, int baudrate, uint8_t ID, bool DEBUG_MSG_SET){
+    PRINT_DEBUG_MSG = DEBUG_MSG_SET;
+    printf("===serial begin===\n");
+    begin(port, baudrate, ID);
+    printf("===set_vel_mode===\n");
+    set_vel_mode();
+    printf("===enable===\n");
+    enable();
+    return set_double_rpm(0, 0);
+}
+
+uint8_t ZLAC::terminate(){
+    set_double_rpm(0, 0);
+    printf("===disable===\n");
+    return disable();
+}
 
 void ZLAC::sleep(unsigned long milliseconds){
 #ifdef _WIN32
@@ -255,7 +277,7 @@ uint8_t ZLAC::read_hex(uint8_t num_bytes){  //crc err check (err = 1)
     printf("\nRCV_HEX:");
     for (uint8_t i = 0; i < uint8_t(line.size()); i++){
         receive_hex[i] = uint8_t(line[i]);
-        printf("|%02x|", receive_hex[i]);
+        if(PRINT_DEBUG_MSG) printf("|%02x|", receive_hex[i]);
     }
     printf("\n");
     // crc check of received data
