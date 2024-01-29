@@ -23,11 +23,17 @@
 
 #define JOINT_PUB_TOPIC_NAME "joint"
 
+//odometry Covariance main Diagonal value
+#define CD 0.1
+
 //setting odometry constant here (based on "ZLLG80ASM250-L" model)
 #define WHEEL_RAD 0.105         //unit: meter
 #define ONE_REV_TRAVEL 0.6597   //one_rev travel = 0.105m * 2PI = 0.6597m 
 #define PULSE_PER_ROT 16385     //encoder pulse per one rot
 #define WHEEL_BASE 0.525        //your robot's wheel to wheel distance
+#define RAD2RPM 9.5493
+#define RPM2RAD 0.1047
+#define CIRCUMFERENCE 6.2832*WHEEL_RAD
 
 class zlac_run : public rclcpp::Node{
 public:
@@ -72,9 +78,6 @@ private:
 
     ZLAC mot;
 
-    double cd = 0.1;                //odometry Covariance main Diagonal value
-    double linx;                    //odometry twist.linear.x
-    double angz;                    //odometry twist.angular.z
     int32_t ENCODER_DIFF_L = 0;         //endocer diff counter
     int32_t ENCODER_DIFF_R = 0;         //endocer diff counter
     double rot_L_dst;               //wheel rotation distance (meter) for calc odometry 
@@ -90,11 +93,11 @@ private:
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg){
         rcv_twist.linear.x = msg->linear.x;
         rcv_twist.angular.z = msg->angular.z;
-        // RCLCPP_INFO(this->get_logger(), "Received Twist: Linear X: '%.2f', Angular Z: '%.2f'",
-        //             msg->linear.x, msg->angular.z);
-        double L_rpm = 9.5493 * ( rcv_twist.linear.x - (rcv_twist.angular.z*WHEEL_BASE)/2 );
-        double R_rpm = 9.5493 * ( rcv_twist.linear.x + (rcv_twist.angular.z*WHEEL_BASE)/2 );
-        mot.set_double_rpm(L_rpm, -R_rpm);
+        RCLCPP_INFO(this->get_logger(), "Received Twist: Linear X: '%.2f', Angular Z: '%.2f'", msg->linear.x, msg->angular.z);
+        double L_rpm = ( rcv_twist.linear.x - (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
+        double R_rpm = ( rcv_twist.linear.x + (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
+        printf("\n\nRPML:%lf|RPMR:%lf|",L_rpm, R_rpm);
+        mot.set_double_rpm(L_rpm, R_rpm);
     }
 
     void publish_odometry(){
@@ -104,28 +107,26 @@ private:
         ENCODER_DIFF_L = motorstat.encoder_L - motorstat_init.encoder_L;
         ENCODER_DIFF_R = motorstat.encoder_R - motorstat_init.encoder_R;
 
+        // printf("\nEL:%d|ER:%d|", ENCODER_DIFF_L, ENCODER_DIFF_R);
         auto msg = nav_msgs::msg::Odometry();
         msg.header.stamp = this->get_clock()->now();
         msg.header.frame_id = ODOM_FRAME_ID;
         msg.child_frame_id = ODOM_CHILD_FRAME_ID;
 
-        linx = 0.10472 * (motorstat.rpm_L - motorstat.rpm_R) / 2;
-        angz = 0.10472 * (motorstat.rpm_R + motorstat.rpm_L) / WHEEL_BASE;
-
-        msg.twist.twist.linear.x = linx;
-        msg.twist.twist.angular.z = angz;
+        msg.twist.twist.linear.x = ((motorstat.rpm_L + motorstat.rpm_R) / 2) / 60 * CIRCUMFERENCE;
+        msg.twist.twist.angular.z = ((motorstat.rpm_R - motorstat.rpm_L) / WHEEL_BASE) / 60 * CIRCUMFERENCE;
 
         // encoder / pulse per rot * 2pi * wheel rad = wheel rot dist (m)
-        rot_L_dst = ENCODER_DIFF_L / PULSE_PER_ROT * 6.283185307 * WHEEL_RAD;
-        rot_R_dst = ENCODER_DIFF_R / PULSE_PER_ROT * 6.283185307 * WHEEL_RAD;
+        rot_L_dst = (double(ENCODER_DIFF_L) / PULSE_PER_ROT) * CIRCUMFERENCE;
+        rot_R_dst = (double(ENCODER_DIFF_R) / PULSE_PER_ROT) * CIRCUMFERENCE;
+        // printf("\nDSTL:%lf|DSTR:%lf|", rot_L_dst, rot_R_dst);
 
         mean_rot_dist = (rot_L_dst + rot_R_dst) / 2.0;
-        rot_theta_diff = (rot_R_dst - rot_L_dst) / WHEEL_BASE;
-        rot_theta = rot_theta + rot_theta_diff;
-        
-        pos_X = pos_X + mean_rot_dist * cos(rot_theta);
-        pos_Y = pos_Y + mean_rot_dist * sin(rot_theta);
-
+        rot_theta = (rot_R_dst - rot_L_dst) / WHEEL_BASE;
+        // printf("\nMMD:%lf|RT:%lf|", mean_rot_dist, rot_theta);
+        pos_X = mean_rot_dist * cos(rot_theta);
+        pos_Y = mean_rot_dist * sin(rot_theta);
+        // printf("\nPX:%lf|PY:%lf|\n", pos_X, pos_Y);
         msg.pose.pose.position.x = pos_X;
         msg.pose.pose.position.y = pos_Y;
         
@@ -133,19 +134,19 @@ private:
         quat.setRPY(0,0,rot_theta);
         msg.pose.pose.orientation = tf2::toMsg(quat);;
 
-        msg.twist.covariance = { cd, 0, 0, 0, 0, 0,
-                                0, cd, 0, 0, 0, 0,
-                                0, 0, cd, 0, 0, 0,
-                                0, 0, 0, cd, 0, 0,
-                                0, 0, 0, 0, cd, 0,
-                                0, 0, 0, 0, 0, cd};
+        msg.twist.covariance = { CD, 0, 0, 0, 0, 0,
+                                0, CD, 0, 0, 0, 0,
+                                0, 0, CD, 0, 0, 0,
+                                0, 0, 0, CD, 0, 0,
+                                0, 0, 0, 0, CD, 0,
+                                0, 0, 0, 0, 0, CD};
 
-        msg.pose.covariance = { cd, 0, 0, 0, 0, 0,
-                                0, cd, 0, 0, 0, 0,
-                                0, 0, cd, 0, 0, 0,
-                                0, 0, 0, cd, 0, 0,
-                                0, 0, 0, 0, cd, 0,
-                                0, 0, 0, 0, 0, cd};
+        msg.pose.covariance = { CD, 0, 0, 0, 0, 0,
+                                0, CD, 0, 0, 0, 0,
+                                0, 0, CD, 0, 0, 0,
+                                0, 0, 0, CD, 0, 0,
+                                0, 0, 0, 0, CD, 0,
+                                0, 0, 0, 0, 0, CD};
         
         odometry_publisher_->publish(msg);
     }

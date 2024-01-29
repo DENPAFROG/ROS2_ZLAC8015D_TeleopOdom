@@ -156,7 +156,9 @@ uint8_t ZLAC::set_single_rpm(int16_t rpm, std::string side){
     hex_cmd[1] = WRITE;
     hex_cmd[2] = 0x20;
     if (side == "LEFT") hex_cmd[3] = SET_L_RPM;
-    else if (side == "RIGHT") hex_cmd[3] = SET_R_RPM;
+    else if (side == "RIGHT") {
+        hex_cmd[3] = SET_R_RPM; 
+        rpm = -rpm;}
     hex_cmd[4] = (rpm >> 8) & 0xFF;
     hex_cmd[5] = rpm & 0xFF;
     calculate_crc(8);
@@ -182,6 +184,7 @@ uint8_t ZLAC::set_double_rpm(int16_t Lrpm, int16_t Rrpm){
     hex_cmd[7] = (Lrpm >> 8) & 0xFF;    
     hex_cmd[8] = Lrpm & 0xFF;
     //data 1
+    Rrpm = -Rrpm;
     hex_cmd[9] = (Rrpm >> 8) & 0xFF;
     hex_cmd[10] = Rrpm & 0xFF;
     calculate_crc(13);
@@ -208,9 +211,9 @@ MOT_DATA ZLAC::get_rpm(){
         return ZLAC_STAT;
     }
     else{
-        ZLAC_STAT.rpm_L = readInt16FromArray(receive_hex, 3)/10.0;    //(unit 0.1 RPM)
-        ZLAC_STAT.rpm_R = readInt16FromArray(receive_hex, 5)/10.0; 
-        //printf("\n\nRPML:%lf|RPMR:%lf|",ZLAC_STAT.rpm_L, ZLAC_STAT.rpm_R);
+        ZLAC_STAT.rpm_L = double(readInt16FromArray(receive_hex, 3))/10.0;    //(unit 0.1 RPM)
+        ZLAC_STAT.rpm_R = -double(readInt16FromArray(receive_hex, 5))/10.0; 
+        printf("\n\nRPML:%lf|RPMR:%lf|",ZLAC_STAT.rpm_L, ZLAC_STAT.rpm_R);
         return ZLAC_STAT;
     }
 }
@@ -231,7 +234,7 @@ MOT_DATA ZLAC::get_position(){  //0x0103|0x20A6|0x0005|CRC can rcv LR motor enco
     }
     else{
         ZLAC_STAT.encoder_L = readInt32FromArray(receive_hex, 5);
-        ZLAC_STAT.encoder_R = readInt32FromArray(receive_hex, 9); 
+        ZLAC_STAT.encoder_R = -readInt32FromArray(receive_hex, 9); 
         return ZLAC_STAT;
     }
 }
@@ -274,12 +277,12 @@ uint8_t ZLAC::read_hex(uint8_t num_bytes){  //crc err check (err = 1)
     _serial.setTimeout(timeout);
     std::string line = _serial.read(num_bytes);
     // convert string to hex
-    printf("\nRCV_HEX:");
+    if(PRINT_DEBUG_MSG) printf("\nRCV_HEX:");
     for (uint8_t i = 0; i < uint8_t(line.size()); i++){
         receive_hex[i] = uint8_t(line[i]);
         if(PRINT_DEBUG_MSG) printf("|%02x|", receive_hex[i]);
     }
-    printf("\n");
+    if(PRINT_DEBUG_MSG) printf("\n");
     // crc check of received data
     if (crc16(receive_hex, num_bytes) != 0){
         printf("\nRCV_CRC_ERR\n");
