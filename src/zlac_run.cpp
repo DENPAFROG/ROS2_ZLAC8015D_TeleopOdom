@@ -21,14 +21,17 @@
 #define MODBUS_ID 0x01
 #define DEBUG_ENABLE false
 
-#define JOINT_PUB_TOPIC_NAME "joint"
+#define JOINT_PUB_TOPIC_NAME "joint_states"
+#define JOINT_NAME_WHEEL_L "wheel_joint_L"
+#define JOINT_NAME_WHEEL_R "wheel_joint_R"
+
 
 //odometry Covariance main Diagonal value
 #define CD 0.1
 
 //setting odometry constant here (based on "ZLLG80ASM250-L" model)
-#define WHEEL_RAD 0.105         //unit: meter
-#define ONE_REV_TRAVEL 0.6597   //one_rev travel = 0.105m * 2PI = 0.6597m 
+#define WHEEL_RAD 0.0975         //unit: meter
+#define ONE_REV_TRAVEL 0.6126   //one_rev travel = 0.105m * 2PI = 0.6597m 
 #define PULSE_PER_ROT 16385     //encoder pulse per one rot
 #define WHEEL_BASE 0.525        //your robot's wheel to wheel distance
 #define RAD2RPM 9.5493
@@ -83,6 +86,8 @@ private:
     double rot_L_dst;               //wheel rotation distance (meter) for calc odometry 
     double rot_R_dst;               //wheel rotation distance (meter) for calc odometry 
     double mean_rot_dist = 0.0;     //LR wheel mean rot distance (meter) for calc odometry
+    double mean_rot_dist_old = 0.0;     //LR wheel mean rot distance (meter) for calc odometry
+    double mean_rot_dist_diff = 0.0;     //LR wheel mean rot distance (meter) diff per 30hz for calc odometry
     double rot_theta_diff = 0.0;    //robot angular state for calc odometry 
     double rot_theta = 0.0;         //robot angular state for calc odometry 
     double pos_X = 0.0;             //robot 2D pos X
@@ -96,7 +101,7 @@ private:
         RCLCPP_INFO(this->get_logger(), "Received Twist: Linear X: '%.2f', Angular Z: '%.2f'", msg->linear.x, msg->angular.z);
         double L_rpm = ( rcv_twist.linear.x - (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
         double R_rpm = ( rcv_twist.linear.x + (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
-        printf("\n\nRPML:%lf|RPMR:%lf|",L_rpm, R_rpm);
+        //printf("\n\nRPML:%lf|RPMR:%lf|",L_rpm, R_rpm);
         mot.set_double_rpm(L_rpm, R_rpm);
     }
 
@@ -123,10 +128,11 @@ private:
 
         mean_rot_dist = (rot_L_dst + rot_R_dst) / 2.0;
         rot_theta = (rot_R_dst - rot_L_dst) / WHEEL_BASE;
-        // printf("\nMMD:%lf|RT:%lf|", mean_rot_dist, rot_theta);
-        pos_X = mean_rot_dist * cos(rot_theta);
-        pos_Y = mean_rot_dist * sin(rot_theta);
-        // printf("\nPX:%lf|PY:%lf|\n", pos_X, pos_Y);
+        mean_rot_dist_diff = mean_rot_dist - mean_rot_dist_old;
+        printf("\nMMD:%lf|RT:%lf|", mean_rot_dist, rot_theta);
+        pos_X += mean_rot_dist_diff * cos(rot_theta);
+        pos_Y += mean_rot_dist_diff * sin(rot_theta);
+        printf("\nPX:%lf|PY:%lf|\n", pos_X, pos_Y);
         msg.pose.pose.position.x = pos_X;
         msg.pose.pose.position.y = pos_Y;
         
@@ -149,6 +155,7 @@ private:
                                 0, 0, 0, 0, 0, CD};
         
         odometry_publisher_->publish(msg);
+        mean_rot_dist_old = mean_rot_dist;
     }
 
     void publish_jointstate(){
@@ -162,12 +169,12 @@ private:
         // message.velocity.resize(num_joints);
         // message.effort.resize(num_joints);
 
-        message.name[0] = "wheel_L";
+        message.name[0] = JOINT_NAME_WHEEL_L;
         message.position[0] = std::fmod(ENCODER_DIFF_L / PULSE_PER_ROT * 6.283185307, 6.283185307);
         // message.velocity[0] = velocity_for_joint1;
         // message.effort[0] = effort_for_joint1;
 
-        message.name[1] = "wheel_R";
+        message.name[1] = JOINT_NAME_WHEEL_R;
         message.position[1] = std::fmod(ENCODER_DIFF_R / PULSE_PER_ROT * 6.283185307, 6.283185307);
         // message.velocity[1] = velocity_for_joint2;
         // message.effort[1] = effort_for_joint2;
