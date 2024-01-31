@@ -2,12 +2,20 @@
 
 **Forked From https://github.com/oxcarxierra/ROS2_ZLAC8015D_serial**
 
-**planning some code modifications and integrate odometry and teleop**
 
-**ROS2 package for serial communication (RS485) with ZLAC8015D motor driver**
-ZLTECH Dual-Channel Servo Driver ZLAC8015D
+**integrate Teleop subscription and odometry publish**\
+
+subscribe "/cmd_vel" (geometry_msgs/msg/Twist)
+
+publish "/odom"  (nav_msgs/msg/Odometry)
+
+
+**ROS2 package for "RS485-USB" with "ZLAC8015D" motor driver communication**\
+
+(ZLTECH Dual-Channel Servo Driver ZLAC8015D)
 
 Driver Info Link: http://www.zlrobotmotor.com/info/401.html
+
 
 ## required packages
 
