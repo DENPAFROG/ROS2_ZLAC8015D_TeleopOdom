@@ -213,7 +213,7 @@ MOT_DATA ZLAC::get_rpm(){
     else{
         ZLAC_STAT.rpm_L = double(readInt16FromArray(receive_hex, 3))/10.0;    //(unit 0.1 RPM)
         ZLAC_STAT.rpm_R = -double(readInt16FromArray(receive_hex, 5))/10.0; 
-        printf("\n\nRPML:%lf|RPMR:%lf|",ZLAC_STAT.rpm_L, ZLAC_STAT.rpm_R);
+        //printf("\n\nRPML:%lf|RPMR:%lf|",ZLAC_STAT.rpm_L, ZLAC_STAT.rpm_R);
         return ZLAC_STAT;
     }
 }

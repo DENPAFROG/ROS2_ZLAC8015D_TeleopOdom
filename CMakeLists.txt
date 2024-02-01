@@ -34,6 +34,18 @@ ament_target_dependencies(zlac_run
   sensor_msgs
 )
 
+add_executable(zlac_run_dummy src/zlac_run_dummy.cpp src/zlac8015d.cpp)
+ament_target_dependencies(zlac_run_dummy
+  serial
+  rclcpp
+  std_msgs
+  nav_msgs
+  geometry_msgs
+  tf2
+  tf2_geometry_msgs
+  sensor_msgs
+)
+
 add_library(zlac8015d src/zlac8015d.cpp) 
 ament_export_targets(zlac8015d HAS_LIBRARY_TARGET)
 ament_target_dependencies(zlac8015d serial rclcpp)
@@ -47,6 +59,7 @@ install(
 install(TARGETS 
   example
   zlac_run
+  zlac_run_dummy
   DESTINATION lib/${PROJECT_NAME}/
 )
 

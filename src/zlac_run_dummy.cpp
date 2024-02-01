@@ -15,11 +15,6 @@
 #define ODOM_PUB_TOPIC_NAME "odom"
 #define ODOM_FRAME_ID "odom"
 #define ODOM_CHILD_FRAME_ID "base_link"
-//setting serial port, baudrate, MODBUS ID, debug_print_enable
-#define SERIAL_PORT_NAME "/dev/ttyUSB0"
-#define BAUDRATE 115200
-#define MODBUS_ID 0x01
-#define DEBUG_ENABLE false
 //setting robot joint names
 #define JOINT_PUB_TOPIC_NAME "joint_states"
 #define JOINT_NAME_WHEEL_L "wheel_joint_L"
@@ -37,11 +32,9 @@
 
 class zlac_run : public rclcpp::Node{
 public:
-    zlac_run() : Node("zlac8015d_node"){   
+    zlac_run() : Node("virtual_zlac8015d_node"){
         if (!initialized) {
-            mot.init(SERIAL_PORT_NAME, BAUDRATE, MODBUS_ID, DEBUG_ENABLE);
-            motorstat_init = mot.get_rpm();
-            motorstat_init = mot.get_position();
+            printf("DUMMY MODE INIT");
             initialized = true;
         }
         // make odometry publisher
@@ -61,25 +54,18 @@ public:
             std::bind(&zlac_run::publish_jointstate, this));
     }
     ~zlac_run(){
-        mot.terminate();
     }
 
 private:
     bool initialized = false;
 
     struct MOT_DATA motorstat;
-    struct MOT_DATA motorstat_init; //motor status data when init
 
-    ZLAC mot;
-
-    int32_t ENCODER_DIFF_L = 0;         //endocer diff counter
-    int32_t ENCODER_DIFF_R = 0;         //endocer diff counter
     double rot_L_dst;               //wheel rotation distance (meter) for calc odometry 
     double rot_R_dst;               //wheel rotation distance (meter) for calc odometry 
     double mean_rot_dist = 0.0;     //LR wheel mean rot distance (meter) for calc odometry
     double mean_rot_dist_old = 0.0;     //LR wheel mean rot distance (meter) for calc odometry
     double mean_rot_dist_diff = 0.0;     //LR wheel mean rot distance (meter) diff per 30hz for calc odometry
-    double rot_theta_diff = 0.0;    //robot angular state for calc odometry 
     double rot_theta = 0.0;         //robot angular state for calc odometry 
     double pos_X = 0.0;             //robot 2D pos X
     double pos_Y = 0.0;             //robot 2D pos Y
@@ -92,17 +78,12 @@ private:
         rcv_twist.linear.x = msg->linear.x;
         rcv_twist.angular.z = msg->angular.z;
         //RCLCPP_INFO(this->get_logger(), "Received Twist: Linear X: '%.2f', Angular Z: '%.2f'", msg->linear.x, msg->angular.z);
-        double L_rpm = ( rcv_twist.linear.x - (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
-        double R_rpm = ( rcv_twist.linear.x + (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
+        motorstat.rpm_L = ( rcv_twist.linear.x - (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
+        motorstat.rpm_R = ( rcv_twist.linear.x + (rcv_twist.angular.z * WHEEL_BASE / 2) ) * (60/(3.1415*2));
         //printf("\n\nRPML:%lf|RPMR:%lf|",L_rpm, R_rpm);
-        mot.set_double_rpm(L_rpm, R_rpm);
     }
 
     void publish_odometry(){
-        motorstat = mot.get_rpm();
-        motorstat = mot.get_position();
-        ENCODER_DIFF_L = motorstat.encoder_L - motorstat_init.encoder_L;
-        ENCODER_DIFF_R = motorstat.encoder_R - motorstat_init.encoder_R;
         // printf("\nEL:%d|ER:%d|", ENCODER_DIFF_L, ENCODER_DIFF_R);
         auto msg = nav_msgs::msg::Odometry();
         msg.header.stamp = this->get_clock()->now();
@@ -111,8 +92,8 @@ private:
         msg.twist.twist.linear.x = ((motorstat.rpm_L + motorstat.rpm_R) / 2) / 60 * CIRCUMFERENCE;
         msg.twist.twist.angular.z = ((motorstat.rpm_R - motorstat.rpm_L) / WHEEL_BASE) / 60 * CIRCUMFERENCE;
         // encoder / pulse per rot * 2pi * wheel rad = wheel rot dist (m)
-        rot_L_dst = (double(ENCODER_DIFF_L) / PULSE_PER_ROT) * CIRCUMFERENCE;
-        rot_R_dst = (double(ENCODER_DIFF_R) / PULSE_PER_ROT) * CIRCUMFERENCE;
+        rot_L_dst += CIRCUMFERENCE * motorstat.rpm_L / 180;
+        rot_R_dst += CIRCUMFERENCE * motorstat.rpm_R / 180;
         rot_angle_L = std::fmod(rot_L_dst / WHEEL_RAD, 6.283185307);
         rot_angle_R = std::fmod(rot_R_dst / WHEEL_RAD, 6.283185307);
         // printf("\nDSTL:%lf|DSTR:%lf|", rot_L_dst, rot_R_dst);
@@ -158,9 +139,9 @@ private:
         message.velocity[0] = motorstat.rpm_L * RPM2RAD;
         message.effort[0] = 0.0;
         message.name[1] = JOINT_NAME_WHEEL_R;
-        message.position[1] = std::fmod(rot_L_dst / WHEEL_RAD, 6.283185307);
         message.position[1] = rot_angle_R;
         message.velocity[1] = motorstat.rpm_R * RPM2RAD;
+        message.effort[1] = 0.0;
         joint_publisher_->publish(message);
     }
 
