@@ -39,7 +39,7 @@ recommended to disable the "brltty" Linux service
 
 
 
-##etc.
+## etc.
 
 (ZLTECH Dual-Channel Servo Driver ZLAC8015D)
 
