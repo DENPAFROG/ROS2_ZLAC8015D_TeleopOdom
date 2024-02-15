@@ -1,7 +1,7 @@
 # ROS2_ZLAC8015D_serial
 
 
-**This program controls "ZLAC8015D" motor driver through USB-RS485 conversion module and converts its data into a ROS2 message.**
+**Controls "ZLAC8015D" motor driver through USB-RS485 conversion module and converts its data into a ROS2 message.**
 
 
 subscribe "/cmd_vel" (geometry_msgs/msg/Twist)
@@ -10,8 +10,6 @@ publish "/odom"  (nav_msgs/msg/Odometry)  and  "/joint_states"  (sensor_msgs::ms
 
 effort data (motor current data or torque data) read and publishing function is not completed yet
 
-
-**ROS2 package for "RS485-USB" with "ZLAC8015D" motor driver communication**\
 
 (ZLTECH Dual-Channel Servo Driver ZLAC8015D)
 
