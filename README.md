@@ -24,7 +24,7 @@ effort data (motor current data or torque data) read and publishing function is 
 
 ```bash
 cd <your_workspace>
-git clone https://github.com/oxcarxierra/ROS2_ZLAC8015D_serial.git
+git clone https://github.com/DENPAFROG/ROS2_ZLAC8015D_TeleopOdom.git
 colcon build --packages-select zlac8015d_serial
 ros2 run zlac8015d_serial zlac_run
 ```
